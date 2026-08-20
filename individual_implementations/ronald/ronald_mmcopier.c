@@ -124,6 +124,7 @@ void *copy_file(void *thread_args) {
         free(args);
         pthread_exit(NULL);
     }
+
     FILE *dst_file = fopen(args->dst_file, "w");
     if (dst_file == NULL) {
         fprintf(stderr, "Error: Failed to open file: %s\n", args->dst_file);
@@ -133,11 +134,25 @@ void *copy_file(void *thread_args) {
         free(args);
         pthread_exit(NULL);
     }
+    
     char buffer[BUFFER_SIZE];
-    int bytes_read;
+    size_t bytes_read;
     while((bytes_read = fread(buffer, 1, BUFFER_SIZE, src_file)) > 0) {
-        fwrite(buffer, 1, bytes_read, dst_file);
+        if (fwrite(buffer, 1, bytes_read, dst_file) != bytes_read) {
+            fprintf(stderr, "Error: Failed to write to file: %s\n", args->dst_file);
+            fclose(src_file);
+            fclose(dst_file);
+            free(args->src_file);
+            free(args->dst_file);
+            free(args);
+            pthread_exit(NULL);
+        }
     }
+    if (ferror(src_file)) {
+        fprintf(stderr, "Error: Failed to read file: %s\n", args->src_file);
+    }
+
+    // Close files
     fclose(src_file);
     fclose(dst_file);
 

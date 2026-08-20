@@ -15,48 +15,53 @@ typedef struct thread_args {
 void *copy_file(void *thread_args);
 
 int main(int argc, char **argv) {
-    // Get args
+    // Parse args
     if (argc != 4) {
-        printf("Error: Wrong number of args\n");
+        fprintf(stderr, "Error: Wrong number of args\n");
         return 1;
     }
     int n = atoi(argv[1]);
     if (n < 2 || n > 10) {
-        printf("Error: n has to be greater than or equal to 2 or lesser than or equal to 10\n");
+        fprintf(stderr, "Error: n has to be an integer between 2 and 10\n");
         return 1;
     }
     char *src_dir = argv[2];
     char *dst_dir = argv[3];
     
+    // Copy files from src_dir to dst_dir with n threads for n files
     // Case 1: src_dir == dst_dir
     if (strcmp(src_dir, dst_dir) == 0) {
-        printf("Error: Source and destination directories are the same\n");
+        fprintf(stderr, "Error: Source and destination directories are the same\n");
         return 1;
     }
 
     // Case 2: src_dir != dst_dir
-    // Get src_dir
+    // Get src_dir ptr
     DIR *src_dirp = opendir(src_dir);
     if (src_dirp == NULL) {
-        printf("Error: %s does not exist\n", src_dir);
+        fprintf(stderr, "Error: %s does not exist\n", src_dir);
         return 1;
     }
 
-    // Get or create dst_dir
+    // Check if dst_dir exists and create dir if not
     DIR *dst_dirp = opendir(dst_dir);
     if (dst_dirp == NULL) {
         if (mkdir(dst_dir, 0777) == -1) {
-            printf("Error making destination directory\n");
+            fprintf(stderr, "Error making destination directory\n");
             return 1;
         }
     } else {
         closedir(dst_dirp);
     }
 
-    // Copy files from src_dir to dst_dir with a thread per file
+    // Copy files from src_dir to dst_dir with 1 thread per file
     struct dirent *entry = NULL;
     int i = 0;
     pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * n);
+    if (threads == NULL) {
+        fprintf(stderr, "Error: Memory allocation failed\n");
+        return 1;
+    }
     while ((entry = readdir(src_dirp)) != NULL && i < n) {
         // Skip hidden files
         if (entry->d_name[0] == '.') {
@@ -65,23 +70,42 @@ int main(int argc, char **argv) {
 
         // Create thread for each file
         thread_args_t *thread_args = (thread_args_t *)malloc(sizeof(thread_args_t));
+        if (thread_args == NULL) {
+            fprintf(stderr, "Error: Memory allocation failed\n");
+            return 1;
+        }
         thread_args->src_file = (char *)malloc(strlen(src_dir) + 1 + strlen(entry->d_name) + 1);
+        if (thread_args->src_file == NULL) {
+            fprintf(stderr, "Error: Memory allocation failed\n");
+
+            return 1;
+        }
         strcpy(thread_args->src_file, src_dir);
         strcat(thread_args->src_file, "/");
         strcat(thread_args->src_file, entry->d_name);
         thread_args->dst_file = (char *)malloc(strlen(dst_dir) + 1 + strlen(entry->d_name) + 1);
+        if (thread_args->dst_file == NULL) {
+            fprintf(stderr, "Error: Memory allocation failed\n");
+            return 1;
+        }
         strcpy(thread_args->dst_file, dst_dir);
         strcat(thread_args->dst_file, "/");
         strcat(thread_args->dst_file, entry->d_name);
 
-        pthread_create(&threads[i], NULL, copy_file, (void *)thread_args);
+        if (pthread_create(&threads[i], NULL, copy_file, (void *)thread_args) != 0) {
+            fprintf(stderr, "Error: Failed to create thread\n");
+            return 1;
+        }
         i++;
     }
     closedir(src_dirp);
 
     // Wait for threads to finish
     for (int j = 0; j < i; j++) {
-        pthread_join(threads[j], NULL);
+        int result;
+        if ((result = pthread_join(threads[j], NULL)) != 0) {
+            fprintf(stderr, "Error: pthread_join failed to execute\n");
+        }
     }
     free(threads);
 
@@ -93,7 +117,22 @@ void *copy_file(void *thread_args) {
 
     // Copy files
     FILE *src_file = fopen(args->src_file, "r");
+    if (src_file == NULL) {
+        fprintf(stderr, "Error: Failed to open file: %s\n", args->src_file);
+        free(args->src_file);
+        free(args->dst_file);
+        free(args);
+        pthread_exit(NULL);
+    }
     FILE *dst_file = fopen(args->dst_file, "w");
+    if (dst_file == NULL) {
+        fprintf(stderr, "Error: Failed to open file: %s\n", args->dst_file);
+        fclose(src_file);
+        free(args->src_file);
+        free(args->dst_file);
+        free(args);
+        pthread_exit(NULL);
+    }
     char buffer[BUFFER_SIZE];
     int bytes_read;
     while((bytes_read = fread(buffer, 1, BUFFER_SIZE, src_file)) > 0) {

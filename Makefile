@@ -1,10 +1,10 @@
 CXX = g++
 CXXFLAGS = -Wall -Werror -g
+# Change the above to CC and CCFLAGS if using c
 LDLIBS = -lpthread
 
-BUILD_DIR = build
-OBJ_DIR = $(BUILD_DIR)/obj
-BIN_DIR = $(BUILD_DIR)/bin
+OBJ_DIR = obj
+BIN_DIR = bin
 
 MMCOPIER_OBJS = $(OBJ_DIR)/mmcopier.o
 MSCOPIER_OBJS = $(OBJ_DIR)/mscopier.o
@@ -14,6 +14,10 @@ MSCOPIER_BIN = $(BIN_DIR)/mscopier
 
 all: directories $(BIN_DIR)/mmcopier $(BIN_DIR)/mscopier
 
+directories:
+	@mkdir -p $(OBJ_DIR); \
+	mkdir -p $(BIN_DIR)
+
 $(MMCOPIER_BIN): directories $(MMCOPIER_OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(MMCOPIER_OBJS) $(LDLIBS)
 
@@ -22,13 +26,8 @@ $(MSCOPIER_BIN): directories $(MSCOPIER_OBJS)
 
 $(OBJ_DIR)/%.o: %.cpp | directories
 	$(CXX) $(CXXFLAGS) -c $< -o $@
-	
-directories: $(BUILD_DIR) $(OBJ_DIR) $(BIN_DIR)
-	@mkdir -p $(BUILD_DIR); \
-	mkdir -p $(OBJ_DIR); \
-	mkdir -p $(BIN_DIR)
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(OBJ_DIR) $(BIN_DIR)
 
 .PHONY: directories clean

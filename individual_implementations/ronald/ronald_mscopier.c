@@ -56,13 +56,13 @@ void *write_to_buffer(void *thread_args);
 int main(int argc, char **argv) {
     // Parse args
     if (argc != 4) {
-        printf("Error: Wrong number of args\n");
+        fprintf(stderr, "Error: Wrong number of args\n");
         return 1;
     }
 
     int n = atoi(argv[1]);
     if (n < 2 || n > 10) {
-        printf("Error: n has to be an integer between 2 and 10\n");
+        fprintf(stderr, "Error: n has to be an integer between 2 and 10\n");
         return 1;
     }
     char *src_file = argv[2];
@@ -165,7 +165,7 @@ void *read_from_buffer(void *thread_args) {
             fprintf(stderr, "Error: Failed to lock mutex\n");
             exit(EXIT_FAILURE);
         }
-        if (args->buffer->full == 0 && !*args->file_read) {
+        while (args->buffer->full == 0 && !*args->file_read) {
             if (pthread_cond_wait(args->not_empty, args->mutex) != 0) {
                 fprintf(stderr, "Error: Failed to wait on condition variable\n");
                 exit(EXIT_FAILURE);
@@ -225,7 +225,7 @@ void *write_to_buffer(void *thread_args) {
             fprintf(stderr, "Error: Failed to lock mutex\n");
             exit(EXIT_FAILURE);
         }
-        if (args->buffer->full == QUEUE_SIZE) {
+        while (args->buffer->full == QUEUE_SIZE) {
             if (pthread_cond_wait(args->not_full, args->mutex) != 0) {
                 fprintf(stderr, "Error: Failed to wait on condition variable\n");
                 exit(EXIT_FAILURE);

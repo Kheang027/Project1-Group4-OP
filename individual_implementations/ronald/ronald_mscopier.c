@@ -34,8 +34,25 @@ typedef struct write_to_buffer_args_t {
 
 void *read_from_buffer(void *thread_args);
 void *write_to_buffer(void *thread_args);
-bool file_read_and_buffer_empty(pthread_mutex_t *mutex, bool *file_read, int *full);
 
+/**
+ * @brief Creates reader and writer threads to copy a file using a shared buffer.
+ *
+ * The program validates the command-line arguments, including that n is
+ * within the range 2 <= n <= 10, opens the source and destination files,
+ * and initialises the shared buffer, mutex, and condition variables.
+ * It then creates n reader and n writer threads. The writer threads read
+ * data from the source file into the shared buffer, while the reader
+ * threads write buffered data to the destination file. The function waits
+ * for all threads to finish before closing the files and destroying the
+ * shared synchronisation resources.
+ *
+ * If an argument, file operation, thread operation, or synchronisation
+ * operation fails, an error is printed to stderr and the program terminates
+ * with an error status.
+ *
+ * @return 0 if the file is copied successfully; 1 if an error occurs.
+ */
 int main(int argc, char **argv) {
     // Parse args
     if (argc != 4) {
@@ -51,8 +68,8 @@ int main(int argc, char **argv) {
     char *src_file = argv[2];
     char *dst_file = argv[3];
 
-    // Create n threads and src_file to dst_file
-    // Create shared resources
+    // Create n threads and open src_file and dst_file
+    // Create shared resources for threads
     buffer_t buffer = {0};
     FILE *src_fp = fopen(src_file, "r");
     if (src_fp == NULL) {
@@ -123,6 +140,22 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+/**
+ * @brief Removes data from the shared buffer and writes it to the destination file.
+ *
+ * The thread waits when the buffer is empty and signals producer threads
+ * when space becomes available. The thread terminates when the source file
+ * has been completely read and the buffer is empty.
+ * 
+ * If a pthread operation or file operation fails, an error is printed
+ * to stderr and the entire program terminates with EXIT_FAILURE.
+ *
+ * @param thread_args Pointer to a read_from_buffer_args_t containing the
+ *                    destination file, shared buffer, mutex, condition
+ *                    variables, and file completion flag.
+ *
+ * @return NULL when the thread terminates.
+ */
 void *read_from_buffer(void *thread_args) {
     read_from_buffer_args_t *args = (read_from_buffer_args_t *)thread_args;
 
@@ -167,6 +200,22 @@ void *read_from_buffer(void *thread_args) {
     pthread_exit(NULL);
 }
 
+/**
+ * @brief Reads data from the source file and adds it to the shared buffer.
+ *
+ * The thread waits when the buffer is full and signals consumer threads
+ * when new data is added. When EOF is reached, the thread marks the file
+ * as fully read and wakes all waiting producer and consumer threads.
+ * 
+ * If a pthread operation or file operation fails, an error is printed
+ * to stderr and the entire program terminates with EXIT_FAILURE.
+ *
+ * @param thread_args Pointer to a write_to_buffer_args_t containing the
+ *                    source file, shared buffer, mutex, condition variables,
+ *                    and file completion flag.
+ *
+ * @return NULL when the thread terminates.
+ */
 void *write_to_buffer(void *thread_args) {
     write_to_buffer_args_t *args = (write_to_buffer_args_t *)thread_args;
 
@@ -197,6 +246,7 @@ void *write_to_buffer(void *thread_args) {
             args->buffer->in = (args->buffer->in + 1) % QUEUE_SIZE;
             args->buffer->full++;
         } else if (feof(args->src_fp)) {
+            // Mutex is unlocked after break
             break;
         } else {
             fprintf(stderr, "Error: Failed to read source file\n");

@@ -14,6 +14,20 @@ typedef struct thread_args {
 
 void *copy_file(void *thread_args);
 
+/**
+ * @brief Creates threads to copy files from a source directory to a destination directory.
+ *
+ * The program validates the command-line arguments, opens the source directory,
+ * creates the destination directory if it does not exist, and creates up to
+ * n (2 <= n <= 10) threads to copy files concurrently. Each thread is responsible
+ * for copying one file. The function waits for all created threads to finish
+ * before releasing allocated resources and terminating.
+ *
+ * If a memory allocation, directory operation, or pthread operation fails,
+ * an error is printed to stderr and the program terminates with an error status.
+ *
+ * @return 0 if all files are copied successfully; 1 if an error occurs.
+ */
 int main(int argc, char **argv) {
     // Parse args
     if (argc != 4) {
@@ -39,7 +53,7 @@ int main(int argc, char **argv) {
     // Get src_dir ptr
     DIR *src_dirp = opendir(src_dir);
     if (src_dirp == NULL) {
-        fprintf(stderr, "Error: %s does not exist\n", src_dir);
+        fprintf(stderr, "Error: Source directory does not exist\n");
         return 1;
     }
 
@@ -74,10 +88,11 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Error: Memory allocation failed\n");
             return 1;
         }
+        // Setup args for each thread
+        // Allocate enough memory for: src_dir + '/' + filename + '\0'
         thread_args->src_file = (char *)malloc(strlen(src_dir) + 1 + strlen(entry->d_name) + 1);
         if (thread_args->src_file == NULL) {
             fprintf(stderr, "Error: Memory allocation failed\n");
-
             return 1;
         }
         strcpy(thread_args->src_file, src_dir);
@@ -92,6 +107,7 @@ int main(int argc, char **argv) {
         strcat(thread_args->dst_file, "/");
         strcat(thread_args->dst_file, entry->d_name);
 
+        // Create thread
         if (pthread_create(&threads[i], NULL, copy_file, (void *)thread_args) != 0) {
             fprintf(stderr, "Error: Failed to create thread\n");
             return 1;
@@ -112,27 +128,35 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+/**
+ * @brief Copies a source file to a destination file.
+ *
+ * The source file is read in BUFFER_SIZE-sized chunks and each chunk
+ * is written to the destination file. Once copying is complete, both
+ * files and the dynamically allocated thread arguments are released.
+ *
+ * If a pthread operation or file operation fails, an error is printed
+ * to stderr and the entire program terminates with EXIT_FAILURE.
+ *
+ * @param thread_args Pointer to a thread_args_t containing the source
+ *                    and destination file paths.
+ *
+ * @return NULL when the thread terminates successfully.
+ */
 void *copy_file(void *thread_args) {
     thread_args_t *args = (thread_args_t *)thread_args;
 
-    // Copy files
+    // Copy src_file to dst_file
     FILE *src_file = fopen(args->src_file, "r");
     if (src_file == NULL) {
         fprintf(stderr, "Error: Failed to open file: %s\n", args->src_file);
-        free(args->src_file);
-        free(args->dst_file);
-        free(args);
-        pthread_exit(NULL);
+        exit(EXIT_FAILURE);
     }
 
     FILE *dst_file = fopen(args->dst_file, "w");
     if (dst_file == NULL) {
         fprintf(stderr, "Error: Failed to open file: %s\n", args->dst_file);
-        fclose(src_file);
-        free(args->src_file);
-        free(args->dst_file);
-        free(args);
-        pthread_exit(NULL);
+        exit(EXIT_FAILURE);
     }
     
     char buffer[BUFFER_SIZE];
@@ -140,16 +164,12 @@ void *copy_file(void *thread_args) {
     while((bytes_read = fread(buffer, 1, BUFFER_SIZE, src_file)) > 0) {
         if (fwrite(buffer, 1, bytes_read, dst_file) != bytes_read) {
             fprintf(stderr, "Error: Failed to write to file: %s\n", args->dst_file);
-            fclose(src_file);
-            fclose(dst_file);
-            free(args->src_file);
-            free(args->dst_file);
-            free(args);
-            pthread_exit(NULL);
+            exit(EXIT_FAILURE);
         }
     }
     if (ferror(src_file)) {
         fprintf(stderr, "Error: Failed to read file: %s\n", args->src_file);
+        exit(EXIT_FAILURE);
     }
 
     // Close files

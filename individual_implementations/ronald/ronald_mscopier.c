@@ -17,7 +17,7 @@ typedef struct buffer_t {
 typedef struct read_from_buffer_args_t {
     FILE *dst_fp;
     buffer_t *buffer;
-    bool *file_read;
+    int *producers_active;
     pthread_mutex_t *mutex;
     pthread_cond_t *not_full;
     pthread_cond_t *not_empty;
@@ -26,7 +26,7 @@ typedef struct read_from_buffer_args_t {
 typedef struct write_to_buffer_args_t {
     FILE *src_fp;
     buffer_t *buffer;
-    bool *file_read;
+    int *producers_active;
     pthread_mutex_t *mutex;
     pthread_cond_t *not_full;
     pthread_cond_t *not_empty;
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Error: Failed to open file %s\n", dst_file);
         return 1;
     }
-    bool file_read = false;
+    int producers_active = n;
     pthread_mutex_t mutex;
     pthread_mutex_init(&mutex, NULL);
     pthread_cond_t not_full;
@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
     read_from_buffer_args_t read_args = {
         .dst_fp = dst_fp, 
         .buffer = &buffer,
-        .file_read = &file_read,
+        .producers_active = &producers_active,
         .mutex = &mutex,
         .not_full = &not_full,
         .not_empty = &not_empty
@@ -99,32 +99,32 @@ int main(int argc, char **argv) {
     write_to_buffer_args_t write_args = {
         .src_fp = src_fp, 
         .buffer = &buffer,
-        .file_read = &file_read,
+        .producers_active = &producers_active,
         .mutex = &mutex,
         .not_full = &not_full,
         .not_empty = &not_empty
     };
 
     // Create n read and write threads
-    pthread_t read_threads[n];
-    pthread_t write_threads[n];
+    pthread_t consumer_threads[n];
+    pthread_t producer_threads[n];
     for (int i = 0; i < n; i++) {
-        if (pthread_create(&read_threads[i], NULL, read_from_buffer, (void *)&read_args) != 0) {
+        if (pthread_create(&consumer_threads[i], NULL, read_from_buffer, (void *)&read_args) != 0) {
             fprintf(stderr, "Error: Failed to create thread\n");
             return 1;
         }
-        if (pthread_create(&write_threads[i], NULL, write_to_buffer, (void *)&write_args) != 0) {
+        if (pthread_create(&producer_threads[i], NULL, write_to_buffer, (void *)&write_args) != 0) {
             fprintf(stderr, "Error: Failed to create thread\n");
             return 1;
         }
     }
     // Wait for threads to execute
     for (int i = 0; i < n; i++) {
-        if (pthread_join(read_threads[i], NULL) != 0) {
+        if (pthread_join(consumer_threads[i], NULL) != 0) {
             fprintf(stderr, "Error: Failed to join thread\n");
             return 1;
         }
-        if (pthread_join(write_threads[i], NULL) != 0) {
+        if (pthread_join(producer_threads[i], NULL) != 0) {
             fprintf(stderr, "Error: Failed to join thread\n");
             return 1;
         }
@@ -144,8 +144,8 @@ int main(int argc, char **argv) {
  * @brief Removes data from the shared buffer and writes it to the destination file.
  *
  * The thread waits when the buffer is empty and signals producer threads
- * when space becomes available. The thread terminates when the source file
- * has been completely read and the buffer is empty.
+ * when space becomes available. The thread terminates when the buffer is
+ * empty and the number of producer threads is 0.
  * 
  * If a pthread operation or file operation fails, an error is printed
  * to stderr and the entire program terminates with EXIT_FAILURE.
@@ -165,22 +165,23 @@ void *read_from_buffer(void *thread_args) {
             fprintf(stderr, "Error: Failed to lock mutex\n");
             exit(EXIT_FAILURE);
         }
-        while (args->buffer->full == 0 && !*args->file_read) {
+        while (args->buffer->full == 0 && *args->producers_active > 0) {
             if (pthread_cond_wait(args->not_empty, args->mutex) != 0) {
                 fprintf(stderr, "Error: Failed to wait on condition variable\n");
                 exit(EXIT_FAILURE);
             }
         }
-        // Check if file has been read and buffer is empty
-        if (args->buffer->full == 0 && *args->file_read) {
+        // Terminate thread if buffer is empty and all producer threads have exited
+        if (args->buffer->full == 0 && *args->producers_active == 0) {
             if (pthread_mutex_unlock(args->mutex) != 0) {
                 fprintf(stderr, "Error: Failed to unlock mutex\n");
                 exit(EXIT_FAILURE);
             }
-            break;
+            pthread_exit(NULL);
         }
         // Read from buffer, write to file, and update state
-        if (fwrite(args->buffer->buffer[args->buffer->out], 1, args->buffer->bytes_read[args->buffer->out], args->dst_fp) != args->buffer->bytes_read[args->buffer->out]) {
+        size_t bytes_written = args->buffer->bytes_read[args->buffer->out];
+        if (fwrite(args->buffer->buffer[args->buffer->out], 1, bytes_written, args->dst_fp) != bytes_written) {
             fprintf(stderr, "Error: Failed to write to destination file\n");
             exit(EXIT_FAILURE);
         }
@@ -205,14 +206,15 @@ void *read_from_buffer(void *thread_args) {
  *
  * The thread waits when the buffer is full and signals consumer threads
  * when new data is added. When EOF is reached, the thread marks the file
- * as fully read and wakes all waiting producer and consumer threads.
+ * as fully read, and decrements the producers_active counter.
  * 
  * If a pthread operation or file operation fails, an error is printed
  * to stderr and the entire program terminates with EXIT_FAILURE.
  *
  * @param thread_args Pointer to a write_to_buffer_args_t containing the
  *                    source file, shared buffer, mutex, condition variables,
- *                    and file completion flag.
+ *                    file completion flag, and number of active producer 
+ *                    threads.
  *
  * @return NULL when the thread terminates.
  */
@@ -230,14 +232,6 @@ void *write_to_buffer(void *thread_args) {
                 fprintf(stderr, "Error: Failed to wait on condition variable\n");
                 exit(EXIT_FAILURE);
             }
-        }
-        // Check if file is read
-        if (*args->file_read) {
-            if (pthread_mutex_unlock(args->mutex) != 0) {
-                fprintf(stderr, "Error: Failed to unlock mutex\n");
-                exit(EXIT_FAILURE);
-            }
-            pthread_exit(NULL);
         }
         // Write to buffer and update state
         size_t bytes_read = fread(args->buffer->buffer[args->buffer->in], 1, BUFFER_SIZE, args->src_fp);
@@ -262,16 +256,21 @@ void *write_to_buffer(void *thread_args) {
             exit(EXIT_FAILURE);
         }
     }
-    *args->file_read = true;
-    // Wake up all sleeping producers and consumers to exit
-    if (pthread_cond_broadcast(args->not_empty) != 0) {
-        fprintf(stderr, "Error: Failed to broadcast condition variable\n");
-        exit(EXIT_FAILURE);
+    // Update state
+    (*args->producers_active)--;
+    // Broadcast if thread is last producer thread, else signal
+    if (*args->producers_active == 0) {
+        if (pthread_cond_broadcast(args->not_empty) != 0) {
+            fprintf(stderr, "Error: Failer to broadcast condition variable\n");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        if (pthread_cond_signal(args->not_empty)) {
+            fprintf(stderr, "Error: Failed to signal condition variable\n");
+            exit(EXIT_FAILURE);
+        }
     }
-    if (pthread_cond_broadcast(args->not_full) != 0) {
-        fprintf(stderr, "Error: Failed to broadcast condition variable\n");
-        exit(EXIT_FAILURE);
-    } 
+    // Release lock
     if (pthread_mutex_unlock(args->mutex) != 0) {
         fprintf(stderr, "Error: Failed to unlock mutex\n");
         exit(EXIT_FAILURE);

@@ -77,8 +77,8 @@ int main(int argc, char **argv) {
         return 1;
     }
     while ((entry = readdir(src_dirp)) != NULL && i < n) {
-        // Skip hidden files
-        if (entry->d_name[0] == '.') {
+        // Skip entries that aren't files and hidden files
+        if (entry->d_type != DT_REG || entry->d_name[0] == '.') {
             continue;
         }
 

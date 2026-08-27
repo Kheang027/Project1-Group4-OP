@@ -1,77 +1,144 @@
-Project 1 — Multithreaded File Copying
+# Project 1 — Multithreaded File Copying
 
-Course: Operating Systems Principles, RMIT Team: Group 4 — Project1-Group4-OP Members: S4204551 · S4197581 · S4000196 · S4055262 Due: Monday, September 7, 2026, 23:59
+**Course:** Operating Systems Principles, RMIT  
+**Team:** Group 4 — Project1-Group4-OP  
+**Members:** S4204551 · S4197581 · S4000196 · S4055262  
+**Due:** Monday, September 7, 2026, 23:59
 
-Task Completion Status
+---
 
-(Update this table as you go — Section 7 requires the README to state exactly which tasks/subtasks are completed.)
+## Task Completion Status
 
-Task Status
-Task 1 — Multithreaded multiple file copying (mmcopier) ⬜ Not started
-Task 2, Subtask 1 — Shared queue + reader/writer threads ⬜ Not started
-Task 2, Subtask 2 — Mutex locking ⬜ Not started
-Task 2, Subtask 3 — Condition variables (avoid busy waiting) ⬜ Not started
+Update this table as work progresses. The README must state exactly which tasks and subtasks have been completed.
 
-Replace ⬜ with ✅ (done) or 🔶 (in progress) as work is completed.
+| Task | Status |
+|---|---|
+| Task 1 — Multithreaded multiple file copying (`mmcopier`) | ⬜ Not started |
+| Task 2, Subtask 1 — Shared queue + reader/writer threads | ⬜ Not started |
+| Task 2, Subtask 2 — Mutex locking | ⬜ Not started |
+| Task 2, Subtask 3 — Condition variables (avoid busy waiting) | ⬜ Not started |
 
-Build Instructions
+### Status Indicators
 
-This project compiles on the RMIT Core Teaching Servers:
+- ⬜ Not started
+- 🔶 In progress
+- ✅ Completed
 
-titan.csit.rmit.edu.au
-jupiter.csit.rmit.edu.au
-saturn.csit.rmit.edu.au
+Replace ⬜ with ✅ or 🔶 as work is completed.
 
-Build:
+---
 
-bash
+## Build Instructions
+
+This project can be compiled and run on any of the RMIT Core Teaching Servers:
+
+- `jupiter.csit.rmit.edu.au`
+- `saturn.csit.rmit.edu.au`
+- `titan.csit.rmit.edu.au`
+
+### Download and Compile
+
+```bash
+ssh <user>@<rmit-server>
+wget https://github.com/Kheang027/Project1-Group4-OP/archive/refs/heads/main.zip
+unzip Project1-Group4-OP-main.zip
+cd Project1-Group4-OP-main.zip
 make all
+```
 
-Builds both mmcopier and mscopier.
+This builds both `mmcopier` and `mscopier`.
 
-Clean up compiled files:
+---
 
-bash
+## Running the Programs
+
+### Task 1 — `mmcopier`
+
+```bash
+./bin/mmcopier n source_dir destination_dir
+```
+
+Copies `source1.txt` through `sourceN.txt` from `source_dir` to `destination_dir`, using one thread per file.
+
+**Constraints:**
+
+* `n` must be between 2 and 10.
+* The source and destination directories must be different.
+
+**Example:**
+
+```bash
+mkdir -p tests/tmp/destination_dir
+./bin/mmcopier 3 tests/source_dir tests/tmp/destination_dir
+```
+
+---
+
+### Task 2 — `mscopier`
+
+```bash
+./bin/mscopier n source_file destination_file
+```
+
+Copies `source_file` to `destination_file` using `n` reader threads and `n` writer threads.
+
+**Constraints:**
+
+* `n` must be between 2 and 10.
+
+**Example:**
+
+```bash
+shuf -n 10000 tests/generate_text/wordlist.10000 > tests/tmp/source_file.txt
+./bin/mscopier 10 tests/tmp/source_file.txt tests/tmp/destination_file.txt
+```
+
+---
+
+### Extra Makefile Functions
+
+#### Clean Up Compiled Files
+
+```bash
 make clean
-Running the Programs
-Task 1 — mmcopier
-bash
-./mmcopier n source_dir destination_dir
+```
 
-Copies source1.txt ... sourceN.txt (n between 2 and 10) from source_dir to destination_dir, one thread per file.
+#### Test Binaries
 
-Example:
+##### All Tests
+```bash
+make test
+```
 
-bash
-./mmcopier 3 source_dir destination_dir
-Task 2 — mscopier
-bash
-./mscopier n source_file destination_file
+##### Test `mmcopier`
+```bash
+make test-mmcopier
+```
 
-Copies source_file to destination_file using n reader threads and n writer threads (n between 2 and 10), coordinated through a shared bounded queue.
+##### Test `mscopier`
 
-Example:
+```bash
+make test-mscopier
+```
 
-bash
-./mscopier 10 input output
+#### Benchmark Binaries
 
-You can generate a test source file using the provided script and dictionary:
+```bash
+make benchmark
+```
 
-bash
-./generate_text.sh 30 > input
-Design Notes
+---
 
-(Fill this in as the implementation progresses — briefly explain how the shared queue, mutex, and condition variables are used, so a marker can follow the design without reading all the code.)
+## Memory Testing
 
-Shared queue:
-Mutex locking:
-Condition variables (avoiding busy waiting):
-Testing
+Run Valgrind using:
 
-(Note what testing was done, e.g. edge cases, valgrind results, server compilation checks.)
+```bash
+valgrind --track-origins=yes --leak-check=full --show-leak-kinds=all ./mscopier 10 source_file.txt destination_file.txt
+```
 
-Compiles cleanly with -Wall -Werror on titan/jupiter/saturn
-mmcopier tested against sample source_dir
-mscopier tested with generated files of varying sizes
-Tested with edge cases (empty file, small file, n=2, n=10)
-Checked with valgrind --track-origins=yes --leak-check=full --show-leak-kinds=all
+Run Leaks using:
+
+```bash
+leaks -atExit -- ./mscopier 10 source_file.txt destination_file.txt
+```

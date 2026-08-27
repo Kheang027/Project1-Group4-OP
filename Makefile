@@ -30,14 +30,16 @@ $(OBJ_DIR)/%.o: %.c | directories
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR) tests/tmp
 
-test: $(BIN_DIR)/mmcopier $(BIN_DIR)/mscopier
+test: test-mmcopier test-mscopier
+
+test-mmcopier: $(BIN_DIR)/mmcopier
 	@echo "========================================"; \
 	echo "          Testing mmcopier"; \
 	echo "========================================"; \
 	echo ""; \
-	echo "=== 1. Destination directory exists ==="; \
 	rm -rf tests/tmp/destination_dir; \
 	mkdir -p tests/tmp/destination_dir; \
+	echo "=== 1. Destination directory exists ==="; \
 	$(BIN_DIR)/mmcopier 10 tests/source_dir tests/tmp/destination_dir; \
 	[ $$? -eq 0 ] && echo "Program: OK" || echo "Program: FAIL"; \
 	for file in tests/source_dir/*; do diff $$file tests/tmp/destination_dir/$$(basename $$file) && echo "$$(basename $$file): OK" || echo "$$(basename $$file): FAIL"; done; \
@@ -76,10 +78,16 @@ test: $(BIN_DIR)/mmcopier $(BIN_DIR)/mscopier
 	$(BIN_DIR)/mmcopier 10 tests/source_dir tests/source_dir 2>/dev/null; \
 	[ $$? -ne 0 ] && echo "Program: OK" || echo "Program: FAIL"; \
 	echo ""; \
-	echo "========================================"; \
+	echo "=== Cleanup ==="; \
+	
+	rm -rf tests/tmp
+
+test-mscopier: $(BIN_DIR)/mscopier
+	@echo "========================================"; \
 	echo "          Testing mscopier"; \
 	echo "========================================"; \
 	echo ""; \
+	mkdir -p tests/tmp; \
 	echo "=== 1. Normal file ==="; \
 	shuf -n 10000 tests/generate_text/wordlist.10000 > tests/tmp/source_file.txt; \
 	$(BIN_DIR)/mscopier 10 tests/tmp/source_file.txt tests/tmp/destination_file.txt; \
@@ -143,6 +151,8 @@ benchmark: $(BIN_DIR)/mmcopier $(BIN_DIR)/mscopier
 	echo "===== Benchmarking mscopier: 10 threads for 10000 iterations ====="; \
 	shuf -n 10000 tests/generate_text/wordlist.10000 > tests/tmp/source_file.txt; \
 	time bash -c 'for i in {1..10000}; do $(BIN_DIR)/mscopier 10 tests/tmp/source_file.txt tests/tmp/destination_file.txt; done'; \
+	echo "=== Cleanup ==="; \
+	
 	rm -rf tests/tmp
 
-.PHONY: directories clean
+.PHONY: directories clean test test-mmcopier test-mscopier benchmark

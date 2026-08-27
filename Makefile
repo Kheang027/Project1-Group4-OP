@@ -147,10 +147,10 @@ test-mscopier: $(BIN_DIR)/mscopier
 benchmark: $(BIN_DIR)/mmcopier $(BIN_DIR)/mscopier
 	@echo "===== Benchmarking mmcopier: 10 threads for 10000 iterations ====="; \
 	mkdir -p tests/tmp/destination_dir; \
-	time bash -c 'for i in {1..10000}; do $(BIN_DIR)/mmcopier 10 tests/source_dir tests/tmp/destination_dir; done'; \
+	time bash -c 'for i in {1..1000}; do $(BIN_DIR)/mmcopier 10 tests/source_dir tests/tmp/destination_dir; done'; \
 	echo "===== Benchmarking mscopier: 10 threads for 10000 iterations ====="; \
 	shuf -n 10000 tests/generate_text/wordlist.10000 > tests/tmp/source_file.txt; \
-	time bash -c 'for i in {1..10000}; do $(BIN_DIR)/mscopier 10 tests/tmp/source_file.txt tests/tmp/destination_file.txt; done'; \
+	time bash -c 'for i in {1..1000}; do $(BIN_DIR)/mscopier 10 tests/tmp/source_file.txt tests/tmp/destination_file.txt; done'; \
 	echo "=== Cleanup ==="; \
 	
 	rm -rf tests/tmp

@@ -1,0 +1,142 @@
+/*
+ * mmcopier.c - Multithreaded multiple file copier
+ *
+ * Creates n threads, each concurrently copying one file
+ * (source1.txt … sourceN.txt) from source_dir to destination_dir.
+ *
+ * Usage: ./mmcopier n source_dir destination_dir   (2 <= n <= 10)
+ *
+ * Design rationale:
+ *   - File names are constructed from the spec pattern sourceN.txt rather
+ *     than scanning the directory, so behaviour is deterministic regardless
+ *     of what else is in source_dir.
+ *   - Thread args live in a stack array in main(); no heap allocation per
+ *     thread means no risk of leaking args on early exits.
+ *   - Each thread reports success/failure back through its args struct, so
+ *     main() can reflect a partial failure (e.g. a missing source file) in
+ *     the process exit code, not just in the printed error message.
+ */
+
+
+#include <dirent.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+#define BUFFER_SIZE 4096
+#define MAX_THREADS 10
+#define MAX_PATH    1024
+
+typedef struct{
+    int file_num;
+    char src_path[MAX_PATH];
+    char dst_path[MAX_PATH];
+    int success; /*set by copy_file() check if == 1 ok, 0 == fail*/
+} copy_args_t;
+
+static void *copy_file(void *arg){
+        copy_args_t *args = (copy_args_t *)arg;
+    args->success = 0; /* assume failure until we reach the end */
+ 
+    FILE *src = fopen(args->src_path, "rb");
+    if (src == NULL) {
+        fprintf(stderr, "Error: cannot open '%s': %s\n",
+                args->src_path, strerror(errno));
+        return NULL;
+    }
+ 
+    FILE *dst = fopen(args->dst_path, "wb");
+    if (dst == NULL) {
+        fprintf(stderr, "Error: cannot open '%s': %s\n",
+                args->dst_path, strerror(errno));
+        fclose(src);
+        return NULL;
+    }
+ 
+    char   buf[BUFFER_SIZE];
+    size_t nr;
+    while ((nr = fread(buf, 1, sizeof(buf), src)) > 0) {
+        if (fwrite(buf, 1, nr, dst) != nr) {
+            fprintf(stderr, "Error: write failed on '%s': %s\n",
+                    args->dst_path, strerror(errno));
+            fclose(src);
+            fclose(dst);
+            return NULL;
+        }
+    }
+ 
+    if (ferror(src)) {
+        fprintf(stderr, "Error: read failed on '%s': %s\n",
+                args->src_path, strerror(errno));
+        fclose(src);
+        fclose(dst);
+        return NULL;
+    }
+ 
+    fclose(src);
+    fclose(dst);
+ 
+    args->success = 1; /* reached the end with no errors */
+    return NULL;
+
+}
+
+
+int main(int argc, char **argv){
+    if(argc != 4){
+        fprintf(stderr, "Usage: %s n source_dir destination_dir\n" ,argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    const char *src_dir = argv[2];
+    const char *dst_dir = argv[3];
+
+    if(strcmp(src_dir, dst_dir) == 0){
+        fprintf(stderr, "Error: Source and destination directories are the same\n");
+        return EXIT_FAILURE;
+    }
+
+    /*Create destination directory if it does not already exist*/
+    if(mkdir(dst_dir, 0777) != 0 && errno != EEXIST){
+        fprintf(stderr, "Error: cannot create '%s' : %s\n", dst_dir, strerror(errno));
+        return EXIT_FAILURE;
+    }
+
+    pthread_t threads[MAX_THREADS];
+    copy_args_t args[MAX_THREADS];
+    int created = 0;
+    int n = atoi(argv[1]);
+
+    for (int i = 0; i < n; i++){
+        args[i].file_num = i + 1;
+        args[i].success = 0;
+        snprintf(args[i].src_path, MAX_PATH, "%s/source%d.txt", src_dir, i + 1);
+        snprintf(args[i].dst_path, MAX_PATH, "%s/source%d.txt", dst_dir, i + 1);
+        int rc = pthread_create(&threads[i], NULL, copy_file, &args[i]);
+        if (rc != 0) {
+            fprintf(stderr, "Error: pthread_create (thread %d): %s\n",
+                    i + 1, strerror(rc));
+            break;
+        }
+        created++;
+    }
+    for (int i = 0; i < created; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    int any_failed = 0;
+    for (int i = 0; i < created; i++) {
+        if (!args[i].success) {
+            any_failed = 1;
+        }
+    }
+
+    if (created < n || any_failed) {
+        return EXIT_FAILURE;
+    } else {
+        return EXIT_SUCCESS;
+    }
+}

@@ -1,5 +1,5 @@
 CC = gcc
-CCFLAGS = -Wall -Werror
+CCFLAGS = -std=c99 -Wall -Werror
 LDLIBS = -lpthread
 
 OBJ_DIR = obj

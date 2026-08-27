@@ -41,8 +41,8 @@ This project can be compiled and run on any of the RMIT Core Teaching Servers:
 ```bash
 ssh <user>@<rmit-server>
 wget https://github.com/Kheang027/Project1-Group4-OP/archive/refs/heads/main.zip
-unzip Project1-Group4-OP-main.zip
-cd Project1-Group4-OP-main.zip
+unzip main.zip
+cd Project1-Group4-OP-main
 make all
 ```
 

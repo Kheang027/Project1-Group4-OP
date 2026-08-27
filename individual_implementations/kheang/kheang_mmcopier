@@ -37,17 +37,20 @@ typedef struct{
     int success; /*set by copy_file() check if == 1 ok, 0 == fail*/
 } copy_args_t;
 
+
 static void *copy_file(void *arg){
-        copy_args_t *args = (copy_args_t *)arg;
+    copy_args_t *args = (copy_args_t *)arg;
     args->success = 0; /* assume failure until we reach the end */
- 
+
+    // Open source file for reading
     FILE *src = fopen(args->src_path, "rb");
     if (src == NULL) {
         fprintf(stderr, "Error: cannot open '%s': %s\n",
                 args->src_path, strerror(errno));
         return NULL;
     }
- 
+
+    // Open destination file for writing
     FILE *dst = fopen(args->dst_path, "wb");
     if (dst == NULL) {
         fprintf(stderr, "Error: cannot open '%s': %s\n",
@@ -55,7 +58,8 @@ static void *copy_file(void *arg){
         fclose(src);
         return NULL;
     }
- 
+
+    // Read source in chunks and write each chunk to destination
     char   buf[BUFFER_SIZE];
     size_t nr;
     while ((nr = fread(buf, 1, sizeof(buf), src)) > 0) {
@@ -67,7 +71,8 @@ static void *copy_file(void *arg){
             return NULL;
         }
     }
- 
+
+    // Check if the loop ended due to a read error
     if (ferror(src)) {
         fprintf(stderr, "Error: read failed on '%s': %s\n",
                 args->src_path, strerror(errno));
@@ -75,17 +80,19 @@ static void *copy_file(void *arg){
         fclose(dst);
         return NULL;
     }
- 
+
+    // Close both files
     fclose(src);
     fclose(dst);
- 
+
     args->success = 1; /* reached the end with no errors */
     return NULL;
-
 }
 
 
+
 int main(int argc, char **argv){
+    // Validate argument count
     if(argc != 4){
         fprintf(stderr, "Usage: %s n source_dir destination_dir\n" ,argv[0]);
         return EXIT_FAILURE;
@@ -94,14 +101,15 @@ int main(int argc, char **argv){
     const char *src_dir = argv[2];
     const char *dst_dir = argv[3];
 
+    // Reject identical source and destination directories
     if(strcmp(src_dir, dst_dir) == 0){
         fprintf(stderr, "Error: Source and destination directories are the same\n");
         return EXIT_FAILURE;
     }
 
-    /*Create destination directory if it does not already exist*/
+    // Create destination directory if it does not already exist
     if(mkdir(dst_dir, 0777) != 0 && errno != EEXIST){
-        fprintf(stderr, "Error: cannot create '%s' : %s\n", dst_dir, strerror(errno));
+        fprintf(stderr, "Error: cannot create '%s': %s\n", dst_dir, strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -110,6 +118,7 @@ int main(int argc, char **argv){
     int created = 0;
     int n = atoi(argv[1]);
 
+    // Spawn one thread per file, building src and dst paths from the index
     for (int i = 0; i < n; i++){
         args[i].file_num = i + 1;
         args[i].success = 0;
@@ -123,10 +132,13 @@ int main(int argc, char **argv){
         }
         created++;
     }
+
+    // Wait for all created threads to finish
     for (int i = 0; i < created; i++) {
         pthread_join(threads[i], NULL);
     }
 
+    // Check each thread's result for any copy failure
     int any_failed = 0;
     for (int i = 0; i < created; i++) {
         if (!args[i].success) {
@@ -134,6 +146,7 @@ int main(int argc, char **argv){
         }
     }
 
+    // Return failure if any thread failed or fewer threads were created than requested
     if (created < n || any_failed) {
         return EXIT_FAILURE;
     } else {

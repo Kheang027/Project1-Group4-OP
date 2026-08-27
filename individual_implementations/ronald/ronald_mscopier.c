@@ -70,7 +70,11 @@ int main(int argc, char **argv) {
 
     // Create n threads and open src_file and dst_file
     // Create shared resources for threads
-    buffer_t buffer = {0};
+    buffer_t buffer = {
+        .in = 0,
+        .out = 0,
+        .full = 0
+    };
     FILE *src_fp = fopen(src_file, "r");
     if (src_fp == NULL) {
         fprintf(stderr, "Error: Failed to open file %s\n", src_file);

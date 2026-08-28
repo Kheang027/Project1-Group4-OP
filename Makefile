@@ -5,7 +5,6 @@ LDLIBS = -lpthread
 OBJ_DIR = obj
 BIN_DIR = bin
 
-
 MMCOPIER_OBJS = $(OBJ_DIR)/mmcopier.o
 MSCOPIER_OBJS = $(OBJ_DIR)/mscopier.o
 

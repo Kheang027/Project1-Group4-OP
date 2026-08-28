@@ -181,7 +181,7 @@ void *read_from_buffer(void *thread_args) {
                 fprintf(stderr, "Error: Failed to unlock mutex\n");
                 exit(EXIT_FAILURE);
             }
-            pthread_exit(NULL);
+            break;
         }
         // Read from buffer, write to file, and update state
         size_t bytes_written = args->buffer->bytes_read[args->buffer->out];

@@ -13,10 +13,10 @@ Update this table as work progresses. The README must state exactly which tasks 
 
 | Task | Status |
 |---|---|
-| Task 1 — Multithreaded multiple file copying (`mmcopier`) | ⬜ Not started |
-| Task 2, Subtask 1 — Shared queue + reader/writer threads | ⬜ Not started |
-| Task 2, Subtask 2 — Mutex locking | ⬜ Not started |
-| Task 2, Subtask 3 — Condition variables (avoid busy waiting) | ⬜ Not started |
+| Task 1 — Multithreaded multiple file copying (`mmcopier`) | ✅ Completed |
+| Task 2, Subtask 1 — Shared queue + reader/writer threads | ✅ Completed |
+| Task 2, Subtask 2 — Mutex locking | ✅ Completed |
+| Task 2, Subtask 3 — Condition variables (avoid busy waiting) | ✅ Completed |
 
 ### Status Indicators
 

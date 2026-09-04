@@ -13,10 +13,10 @@ Update this table as work progresses. The README must state exactly which tasks 
 
 | Task | Status |
 |---|---|
-| Task 1 — Multithreaded multiple file copying (`mmcopier`) | ✅ Completed |
-| Task 2, Subtask 1 — Shared queue + reader/writer threads | ✅ Completed |
-| Task 2, Subtask 2 — Mutex locking | ✅ Completed |
-| Task 2, Subtask 3 — Condition variables (avoid busy waiting) | ✅ Completed |
+| Task 1 — Multithreaded multiple file copying (`mmcopier`) | ⬜ Not started |
+| Task 2, Subtask 1 — Shared queue + reader/writer threads | ⬜ Not started |
+| Task 2, Subtask 2 — Mutex locking | ⬜ Not started |
+| Task 2, Subtask 3 — Condition variables (avoid busy waiting) | ⬜ Not started |
 
 ### Status Indicators
 
@@ -40,9 +40,9 @@ This project can be compiled and run on any of the RMIT Core Teaching Servers:
 
 ```bash
 ssh <user>@<rmit-server>
-wget https://github.com/Kheang027/Project1-Group4-OP/archive/refs/heads/final.zip
-unzip final.zip
-cd Project1-Group4-OP-final
+wget https://github.com/Kheang027/Project1-Group4-OP/archive/refs/heads/main.zip
+unzip main.zip
+cd Project1-Group4-OP-main
 make all
 ```
 
